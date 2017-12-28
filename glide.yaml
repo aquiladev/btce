@@ -1,0 +1,8 @@
+package: github.com/aquiladev/btce
+import:
+- package: github.com/btcsuite/btcd
+- package: github.com/btcsuite/btclog
+- package: github.com/btcsuite/btcutil
+- package: github.com/btcsuite/goleveldb
+  subpackages:
+  - leveldb
