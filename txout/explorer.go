@@ -38,7 +38,7 @@ out:
 		err := e.explore()
 		if err != nil {
 			log.Error(err)
-			panic(err)
+			break out
 		}
 		e.logProgress()
 
@@ -50,6 +50,8 @@ out:
 	if err != nil {
 		log.Error(err)
 	}
+
+	e.wg.Done()
 }
 
 func (e *Explorer) explore() error {
@@ -121,6 +123,10 @@ func (e *Explorer) Stop() {
 
 	log.Infof("TxOut explorer shutting down")
 	close(e.quit)
+	e.wg.Wait()
+}
+
+func (e *Explorer) WaitForShutdown() {
 	e.wg.Wait()
 }
 

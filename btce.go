@@ -75,6 +75,9 @@ func btceMain(explorerChan chan<- *explorer) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		txoutDB.Close()
+	}()
 
 	// Balance DB
 	balanceDbPath := filepath.Join(cfg.DataDir, "balance")
@@ -82,6 +85,9 @@ func btceMain(explorerChan chan<- *explorer) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		balanceDB.Close()
+	}()
 
 	// Create explorer and start it.
 	explorer, err := newExplorer(sourceDB, activeNetParams.Params, interrupt, txoutDB, balanceDB)

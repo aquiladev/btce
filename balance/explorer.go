@@ -49,10 +49,18 @@ out:
 		default:
 		}
 
-		e.explore2()
+		err := e.explore2()
+		if err != nil {
+			log.Error(err)
+			break out
+		}
+		e.logProgress()
+
 		e.height++
 		e.handledLogBlk++
 	}
+
+	e.wg.Done()
 }
 
 func (e *Explorer) explore() {
@@ -83,16 +91,14 @@ func (e *Explorer) explore() {
 	}
 }
 
-func (e *Explorer) explore2() {
+func (e *Explorer) explore2() error {
 	block, err := e.chain.BlockByHeight(e.height)
 	if err != nil {
-		log.Error(err)
-		close(e.quit)
-		return
+		return err
 	}
 
 	e.exploreBlock(block)
-	e.logProgress()
+	return nil
 }
 
 func (e *Explorer) exploreBlock(block *btcutil.Block) {
@@ -298,6 +304,10 @@ func (e *Explorer) Stop() {
 
 	log.Infof("Balance explorer shutting down")
 	close(e.quit)
+	e.wg.Wait()
+}
+
+func (e *Explorer) WaitForShutdown() {
 	e.wg.Wait()
 }
 

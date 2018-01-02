@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 
 	"github.com/btcsuite/goleveldb/leveldb"
+	"github.com/btcsuite/goleveldb/leveldb/opt"
+	"github.com/btcsuite/goleveldb/leveldb/filter"
 )
 
 type Balance struct {
@@ -58,7 +60,12 @@ func (bdb *db) Close() error {
 }
 
 func NewDB(path string) (*db, error) {
-	ldb, err := leveldb.OpenFile(path, nil)
+	opts := opt.Options{
+		Strict:       opt.DefaultStrict,
+		Compression:  opt.NoCompression,
+		Filter:       filter.NewBloomFilter(10),
+	}
+	ldb, err := leveldb.OpenFile(path, &opts)
 
 	if err != nil {
 		return nil, err

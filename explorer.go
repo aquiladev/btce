@@ -1,9 +1,7 @@
 package main
 
 import (
-	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/aquiladev/btce/balance"
 	"github.com/aquiladev/btce/txout"
@@ -15,17 +13,15 @@ import (
 type Explorer interface {
 	Start()
 	Stop()
+	WaitForShutdown()
 }
 
 type explorer struct {
-	started     int32
-	shutdown    int32
-	startupTime int64
+	started  int32
+	shutdown int32
 
-	wg         sync.WaitGroup
-	quit       chan struct{}
 	timeSource blockchain.MedianTimeSource
-	explorers  map[int][]Explorer
+	explorers  []Explorer
 }
 
 // Start begins accepting connections from peers.
@@ -37,17 +33,9 @@ func (e *explorer) Start() {
 
 	explLog.Trace("Starting explorer")
 
-	// Explorer startup time. Used for the uptime command for uptime calculation.
-	e.startupTime = time.Now().Unix()
-
 	for _, ex := range e.explorers {
-		for _, e := range ex {
-			go e.Start()
-		}
+		ex.Start()
 	}
-
-	// Start the peer handler which in turn starts the address and block managers.
-	e.wg.Add(1)
 }
 
 // Stop gracefully shuts down the explorer by stopping and disconnecting all
@@ -62,22 +50,16 @@ func (e *explorer) Stop() error {
 	explLog.Warnf("Explorer shutting down")
 
 	for _, ex := range e.explorers {
-		for _, e := range ex {
-			go e.Stop()
-		}
+		go ex.Stop()
 	}
-
-	// Signal the remaining goroutines to quit.
-	close(e.quit)
-
-	//TODO: stop exploring
-	e.wg.Done()
 	return nil
 }
 
 // WaitForShutdown blocks until the main listener and peer handlers are stopped.
 func (e *explorer) WaitForShutdown() {
-	e.wg.Wait()
+	for _, ex := range e.explorers {
+		ex.WaitForShutdown()
+	}
 }
 
 func newExplorer(
@@ -87,7 +69,6 @@ func newExplorer(
 	txoutDB txout.DB,
 	balanceDB balance.DB) (*explorer, error) {
 	e := explorer{
-		quit:       make(chan struct{}),
 		timeSource: blockchain.NewMedianTime(),
 	}
 
@@ -103,8 +84,7 @@ func newExplorer(
 	}
 
 	// Add explorers
-	e.explorers = make(map[int][]Explorer)
-	e.explorers[0] = []Explorer{
+	e.explorers = []Explorer{
 		txout.NewExplorer(txoutDB, chain),
 		balance.NewExplorer(chain, chainParams, txoutDB, balanceDB),
 	}

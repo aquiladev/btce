@@ -7,6 +7,7 @@ import (
 
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/goleveldb/leveldb"
+	"github.com/btcsuite/goleveldb/leveldb/opt"
 )
 
 var (
@@ -81,7 +82,11 @@ func (o *db) Close() error {
 }
 
 func NewDB(path string) (*db, error) {
-	odb, err := leveldb.OpenFile(path, nil)
+	opts := opt.Options{
+		Strict:      opt.DefaultStrict,
+		Compression: opt.NoCompression,
+	}
+	odb, err := leveldb.OpenFile(path, &opts)
 
 	if err != nil {
 		return nil, err
