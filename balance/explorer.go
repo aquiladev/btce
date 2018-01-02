@@ -49,7 +49,7 @@ out:
 		default:
 		}
 
-		err := e.explore2()
+		err := e.explore()
 		if err != nil {
 			log.Error(err)
 			break out
@@ -63,7 +63,17 @@ out:
 	e.wg.Done()
 }
 
-func (e *Explorer) explore() {
+func (e *Explorer) explore() error {
+	block, err := e.chain.BlockByHeight(e.height)
+	if err != nil {
+		return err
+	}
+
+	e.exploreBlock(block)
+	return nil
+}
+
+func (e *Explorer) exploreBatch() {
 	done := make(chan bool)
 	defer close(done)
 
@@ -89,16 +99,6 @@ func (e *Explorer) explore() {
 		<-done
 		e.logProgress()
 	}
-}
-
-func (e *Explorer) explore2() error {
-	block, err := e.chain.BlockByHeight(e.height)
-	if err != nil {
-		return err
-	}
-
-	e.exploreBlock(block)
-	return nil
 }
 
 func (e *Explorer) exploreBlock(block *btcutil.Block) {

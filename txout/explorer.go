@@ -13,7 +13,6 @@ import (
 type Explorer struct {
 	started     int32
 	shutdown    int32
-	startupTime int64
 
 	wg    sync.WaitGroup
 	quit  chan struct{}
@@ -35,7 +34,7 @@ out:
 		default:
 		}
 
-		err := e.explore()
+		err := e.explore(e.height)
 		if err != nil {
 			log.Error(err)
 			break out
@@ -54,8 +53,49 @@ out:
 	e.wg.Done()
 }
 
-func (e *Explorer) explore() error {
-	block, err := e.chain.BlockByHeight(e.height)
+func (e *Explorer) startBatch() {
+	done := make(chan bool)
+	defer close(done)
+	batch := 100
+
+out:
+	for {
+		select {
+		case <-e.quit:
+			break out
+		default:
+		}
+
+		for i := 0; i < batch; i++ {
+			go func(height int32, ch chan bool) {
+				err := e.explore(height)
+				if err != nil {
+					log.Error(err)
+					ch <- false
+					return
+				}
+				ch <- true
+			}(e.height, done)
+
+			e.height++
+			e.handledLogBlk++
+		}
+		for i := 0; i < batch; i++ {
+			<-done
+			e.logProgress()
+		}
+	}
+
+	err := e.db.SetHeight(e.height)
+	if err != nil {
+		log.Error(err)
+	}
+
+	e.wg.Done()
+}
+
+func (e *Explorer) explore(height int32) error {
+	block, err := e.chain.BlockByHeight(height)
 	if err != nil {
 		return err
 	}
@@ -113,7 +153,7 @@ func (e *Explorer) Start() {
 
 	log.Trace("Starting TxOut explorer")
 	e.wg.Add(1)
-	go e.start()
+	go e.startBatch()
 }
 
 func (e *Explorer) Stop() {
@@ -130,9 +170,9 @@ func (e *Explorer) WaitForShutdown() {
 	e.wg.Wait()
 }
 
-func NewExplorer(txoutDB DB, chain *blockchain.BlockChain) *Explorer {
+func NewExplorer(db DB, chain *blockchain.BlockChain) *Explorer {
 	// Get height
-	height, err := txoutDB.GetHeight()
+	height, err := db.GetHeight()
 	if err != nil {
 		log.Error(err)
 		panic(err)
@@ -141,7 +181,7 @@ func NewExplorer(txoutDB DB, chain *blockchain.BlockChain) *Explorer {
 
 	return &Explorer{
 		quit:        make(chan struct{}),
-		db:          txoutDB,
+		db:          db,
 		chain:       chain,
 		lastLogTime: time.Now(),
 		height:      height,
