@@ -13,28 +13,31 @@ import (
 )
 
 const (
-	defaultConfigFilename = "btce.conf"
-	defaultDataDirname    = "data"
-	defaultLogDirname     = "logs"
-	defaultLogFilename    = "btce.log"
-	defaultDbType         = "ffldb"
+	defaultConfigFilename    = "btce.conf"
+	defaultSourceDataDirname = "D:\\btcd\\data" //TODO btcd-data
+	defaultDataDirname       = "data"
+	defaultLogDirname        = "logs"
+	defaultLogFilename       = "btce.log"
+	defaultDbType            = "ffldb"
 )
 
 var (
-	defaultHomeDir    = btcutil.AppDataDir("btce", false)
-	defaultConfigFile = filepath.Join(defaultHomeDir, defaultConfigFilename)
-	defaultDataDir    = filepath.Join("D:\\btcd", defaultDataDirname) //filepath.Join(defaultHomeDir, defaultDataDirname)
-	knownDbTypes      = database.SupportedDrivers()
-	defaultLogDir     = filepath.Join(defaultHomeDir, defaultLogDirname)
+	defaultHomeDir       = btcutil.AppDataDir("btce", false)
+	defaultConfigFile    = filepath.Join(defaultHomeDir, defaultConfigFilename)
+	defaultSourceDataDir = defaultSourceDataDirname //TODO default from app dir
+	defaultDataDir       = filepath.Join(defaultHomeDir, defaultDataDirname)
+	knownDbTypes         = database.SupportedDrivers()
+	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 )
 
 type config struct {
-	ShowVersion bool   `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile  string `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir     string `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir      string `long:"logdir" description:"Directory to log output."`
-	DbType      string `long:"dbtype" description:"Database backend to use for the Block Chain"`
-	DebugLevel  string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	ShowVersion   bool   `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile    string `short:"C" long:"configfile" description:"Path to configuration file"`
+	SourceDataDir string `short:"s" long:"sourcedatadir" description:"Path to source data"`
+	DataDir       string `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir        string `long:"logdir" description:"Directory to log output."`
+	DbType        string `long:"dbtype" description:"Database backend to use for the Block Chain"`
+	DebugLevel    string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 }
 
 // cleanAndExpandPath expands environment variables and leading ~ in the
@@ -100,9 +103,10 @@ func fileExists(name string) bool {
 // command line options.  Command line options always take precedence.
 func loadConfig() (*config, error) {
 	cfg := config{
-		DataDir: defaultDataDir,
-		LogDir:  defaultLogDir,
-		DbType:  defaultDbType,
+		SourceDataDir: defaultSourceDataDir,
+		DataDir:       defaultDataDir,
+		LogDir:        defaultLogDir,
+		DbType:        defaultDbType,
 	}
 
 	// Pre-parse the command line options to see if an alternative config
@@ -110,6 +114,7 @@ func loadConfig() (*config, error) {
 	// help message error can be ignored here since they will be caught by
 	// the final parse below.
 	preCfg := cfg
+	//TODO read config file
 
 	// Show the version and exit if the version flag was specified.
 	appName := filepath.Base(os.Args[0])
@@ -119,6 +124,8 @@ func loadConfig() (*config, error) {
 		fmt.Println(appName, "version", version())
 		os.Exit(0)
 	}
+
+	cfg.SourceDataDir = filepath.Join(cfg.SourceDataDir, activeNetParams.Name)
 
 	// Append the network type to the data directory so it is "namespaced"
 	// per network.  In addition to the block database, there are other
