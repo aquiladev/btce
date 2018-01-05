@@ -1,9 +1,9 @@
-package balance
+package ledger
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,31 +13,30 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
+	"github.com/pkg/errors"
 )
 
-type keyValue struct {
-	key   string
-	value int64
-}
+var ErrTxOutNotFound = fmt.Errorf("tx out not found")
 
 type Explorer struct {
-	started     int32
-	shutdown    int32
-	startupTime int64
+	started  int32
+	shutdown int32
 
 	wg          sync.WaitGroup
 	quit        chan struct{}
 	chain       *blockchain.BlockChain
 	chainParams *chaincfg.Params
 
-	txoutDB       txout.DB
-	balanceDB     DB
-	handledLogBlk int64
-	handledLogTx  int64
-	lastLogTime   time.Time
-	height        int32
+	txoutDB         txout.DB
+	db              DB
+	balanceCalc     *BalanceCalc
+	handledLogBlk   int64
+	handledLogTx    int64
+	lastLogTime     time.Time
+	lastBalanceCalc int32
+	height          int32
+	batchSize       int
 }
 
 func (e *Explorer) start() {
@@ -49,7 +48,16 @@ out:
 		default:
 		}
 
-		err := e.explore()
+		err := e.explore(e.height)
+		if err != nil {
+			if strings.Contains(err.Error(), "no block at height") {
+				time.Sleep(1 * time.Minute)
+				continue
+			}
+			log.Error(err)
+			break out
+		}
+		err = e.calcBalances()
 		if err != nil {
 			log.Error(err)
 			break out
@@ -60,93 +68,116 @@ out:
 		e.handledLogBlk++
 	}
 
+	err := e.db.SetHeight(e.height)
+	if err != nil {
+		log.Error(err)
+	}
+
 	e.wg.Done()
 }
 
-func (e *Explorer) explore() error {
-	block, err := e.chain.BlockByHeight(e.height)
+func (e *Explorer) startBatch() {
+	done := make(chan error)
+	defer close(done)
+
+out:
+	for {
+		select {
+		case <-e.quit:
+			break out
+		default:
+		}
+
+		for i := 0; i < e.batchSize; i++ {
+			go func(height int32, ch chan error) {
+				ch <- e.explore(height)
+			}(e.height+int32(i), done)
+		}
+		for i := 0; i < e.batchSize; i++ {
+			err := <-done
+			if err != nil {
+				if strings.Contains(err.Error(), "no block at height") {
+					time.Sleep(1 * time.Minute)
+					continue
+				}
+				log.Error(err)
+				break out
+			}
+			err = e.calcBalances()
+			if err != nil {
+				log.Error(err)
+				break out
+			}
+			e.logProgress()
+
+			e.handledLogBlk++
+		}
+		e.height += int32(e.batchSize)
+	}
+
+	err := e.db.SetHeight(e.height)
+	if err != nil {
+		log.Error(err)
+	}
+
+	e.wg.Done()
+}
+
+func (e *Explorer) explore(height int32) error {
+	block, err := e.chain.BlockByHeight(height)
 	if err != nil {
 		return err
 	}
 
-	e.exploreBlock(block)
-	return nil
+	return e.exploreBlock(block)
 }
 
-func (e *Explorer) exploreBatch() {
-	done := make(chan bool)
-	defer close(done)
-
-	batch := 500
-
-	for i := 0; i < batch; i++ {
-		go func(height int32, ch chan bool) {
-			block, err := e.chain.BlockByHeight(height)
-			if err != nil {
-				log.Error(err)
-				close(e.quit)
-				return
-			}
-
-			e.exploreBlock(block)
-			ch <- true
-		}(e.height, done)
-
-		e.height++
-		e.handledLogBlk++
-	}
-	for i := 0; i < batch; i++ {
-		<-done
-		e.logProgress()
-	}
-}
-
-func (e *Explorer) exploreBlock(block *btcutil.Block) {
-	addrMap := make(map[string]int64)
-
+func (e *Explorer) exploreBlock(block *btcutil.Block) error {
+	var entries []Entry
 	for _, tx := range block.Transactions() {
 		msgTx := tx.MsgTx()
 
 		// explore input transactions
 		for i, txIn := range msgTx.TxIn {
 			prevOut := txIn.PreviousOutPoint
-			if prevOut.Hash.String() == "0000000000000000000000000000000000000000000000000000000000000000" {
+			if prevOut.Hash.IsEqual(&chainhash.Hash{}) {
 				continue
 			}
 
-			var originPkScript []byte
-			var originValue int64
-
-			txOut, err := e.getTxOut(&prevOut.Hash, prevOut.Index)
+			key := fmt.Sprintf("%s:%d", &prevOut.Hash, prevOut.Index)
+			txOut, err := e.txoutDB.Get([]byte(key))
 			if err != nil {
-				log.Error(err)
+				return err
 			}
 
 			if txOut == nil {
 				log.Infof("TxIn #%d %+v", i, txIn)
 				log.Infof("Tx %+v", tx)
 				log.Infof("Block height %+v", block.Height())
-				panic("aaaaaaaaaaaaaaa")
+				return ErrTxOutNotFound
 			}
-			originValue = txOut.Value
-			originPkScript = txOut.PkScript
 
-			_, addresses, _, _ := txscript.ExtractPkScriptAddrs(originPkScript, e.chainParams)
+			_, addresses, _, _ := txscript.ExtractPkScriptAddrs(txOut.PkScript, e.chainParams)
 
 			if len(addresses) != 1 {
-				log.Debugf("Number of inputs %d, Inputs: %+v, PrevOut: %+v", len(addresses), addresses, &prevOut)
+				log.Infof("Number of inputs %d, Inputs: %+v, PrevOut: %+v, TxHash: %+v", len(addresses), addresses, &prevOut, tx.Hash())
 				continue
 			}
 
 			pubKey, err := convertToPubKey(addresses[0])
 			if err != nil {
 				log.Infof("TxOut %+v, Type: %+v", addresses[0], reflect.TypeOf(addresses[0]))
-				log.Error(err)
-				continue
+				return err
 			}
 
-			log.Debugf("TxIn #%d, PrevOut: %+v, Address: %+v, OriginalValue: %d", i, &prevOut, addresses[0], originValue)
-			addrMap[pubKey] -= originValue
+			log.Debugf("TxIn #%d, PrevOut: %+v, Address: %+v, OriginalValue: %d", i, &prevOut, addresses[0], txOut.Value)
+
+			entries = append(entries, Entry{
+				Address: []byte(pubKey),
+				TxHash:  tx.Hash(),
+				In:      false,
+				Value:   txOut.Value,
+			})
 		}
 
 		// explore output transactions
@@ -161,22 +192,21 @@ func (e *Explorer) exploreBlock(block *btcutil.Block) {
 			pubKey, err := convertToPubKey(addresses[0])
 			if err != nil {
 				log.Infof("TxOut %+v, Type: %+v", addresses[0], reflect.TypeOf(addresses[0]))
-				log.Error(err)
-				continue
+				return err
 			}
 
-			addrMap[pubKey] += txOut.Value
+			entries = append(entries, Entry{
+				Address: []byte(pubKey),
+				TxHash:  tx.Hash(),
+				In:      true,
+				Value:   txOut.Value,
+			})
 		}
 
 		e.handledLogTx++
 	}
 
-	e.writeTxs(addrMap)
-}
-
-func (e *Explorer) getTxOut(hash *chainhash.Hash, index uint32) (*wire.TxOut, error) {
-	key := fmt.Sprintf("%s:%d", hash.String(), index)
-	return e.txoutDB.Get([]byte(key))
+	return e.db.PutBatch(entries)
 }
 
 func convertToPubKey(addr btcutil.Address) (string, error) {
@@ -205,60 +235,19 @@ func convertToPubKey(addr btcutil.Address) (string, error) {
 	return "", errUnsupportedAddressType
 }
 
-func (e *Explorer) writeTxs(addressMap map[string]int64) {
-	done := make(chan bool)
-
-	amount := 0
-	for k := range addressMap {
-		if addressMap[k] == 0 {
-			continue
-		}
-
-		pair := &keyValue{
-			key:   k,
-			value: addressMap[k],
-		}
-
-		amount++
-		go e.writeTx(done, pair)
+func (e *Explorer) calcBalances() error {
+	diff := e.height - e.lastBalanceCalc
+	if diff < 1000 {
+		return nil
 	}
 
-	for i := 0; i < amount; i++ {
-		<-done
-	}
-}
-
-func (e *Explorer) writeTx(c chan bool, item *keyValue) {
-	entry, err := e.balanceDB.Get(item.key)
+	err := e.balanceCalc.Calc()
 	if err != nil {
-		log.Error(err)
-		panic("WWWWWW")
+		return err
 	}
 
-	if entry == nil {
-		bEntry := new(Balance)
-		bEntry.PublicKey = item.key
-		bEntry.Value = item.value
-
-		err := e.balanceDB.Put(bEntry)
-		if err != nil {
-			log.Error(err)
-			c <- false
-			panic("WWWWWW")
-		}
-		c <- true
-		return
-	}
-
-	entry.Value += item.value
-
-	err = e.balanceDB.Put(entry)
-	if err != nil {
-		log.Error(err)
-		c <- false
-		panic("WWWWWW")
-	}
-	c <- true
+	e.lastBalanceCalc = e.height
+	return nil
 }
 
 func (e *Explorer) logProgress() {
@@ -292,17 +281,17 @@ func (e *Explorer) Start() {
 		return
 	}
 
-	log.Trace("Starting Balance explorer")
+	log.Trace("Starting Ledger explorer")
 	e.wg.Add(1)
-	go e.start()
+	go e.startBatch()
 }
 
 func (e *Explorer) Stop() {
 	if atomic.AddInt32(&e.shutdown, 1) != 1 {
-		log.Warnf("Balance explorer is already in the process of shutting down")
+		log.Warnf("Ledger explorer is already in the process of shutting down")
 	}
 
-	log.Infof("Balance explorer shutting down")
+	log.Infof("Ledger explorer shutting down")
 	close(e.quit)
 	e.wg.Wait()
 }
@@ -315,14 +304,26 @@ func NewExplorer(
 	chain *blockchain.BlockChain,
 	chainParams *chaincfg.Params,
 	txoutDB txout.DB,
-	balanceDB DB) *Explorer {
+	db DB,
+	batchSize int) *Explorer {
+
+	// Get height
+	height, err := db.GetHeight()
+	if err != nil {
+		log.Error(err)
+		panic(err)
+	}
+	log.Infof("Height: %d", height)
+
 	return &Explorer{
 		quit:        make(chan struct{}),
 		chainParams: chainParams,
 		txoutDB:     txoutDB,
-		balanceDB:   balanceDB,
+		db:          db,
+		balanceCalc: newBalanceCalc(db),
 		chain:       chain,
 		lastLogTime: time.Now(),
-		height:      0,
+		height:      height,
+		batchSize:   batchSize,
 	}
 }

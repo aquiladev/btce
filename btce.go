@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"runtime/debug"
 
-	"github.com/aquiladev/btce/balance"
+	"github.com/aquiladev/btce/ledger"
 	"github.com/aquiladev/btce/txout"
 	"github.com/btcsuite/btcd/database"
 	"github.com/btcsuite/btcd/limits"
@@ -79,18 +79,18 @@ func btceMain(explorerChan chan<- *explorer) error {
 		txoutDB.Close()
 	}()
 
-	// Balance DB
-	balanceDbPath := filepath.Join(cfg.DataDir, "balance")
-	balanceDB, err := balance.NewDB(balanceDbPath)
+	// TxOut DB
+	ledgerDBPath := filepath.Join(cfg.DataDir, "ledger")
+	ledgerDB, err := ledger.NewDB(ledgerDBPath)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		balanceDB.Close()
+		txoutDB.Close()
 	}()
 
 	// Create explorer and start it.
-	explorer, err := newExplorer(sourceDB, activeNetParams.Params, interrupt, txoutDB, balanceDB)
+	explorer, err := newExplorer(sourceDB, activeNetParams.Params, interrupt, txoutDB, ledgerDB)
 	if err != nil {
 		btceLog.Errorf("Unable to start explorer: %v", err)
 		return err

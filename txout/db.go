@@ -14,11 +14,17 @@ var (
 	heightKey = "height"
 )
 
+type KeyTx struct {
+	Key []byte
+	Tx *wire.TxOut
+}
+
 type DB interface {
-	Get(key []byte) (*wire.TxOut, error)
-	Put(key []byte, tx *wire.TxOut) error
 	GetHeight() (int32, error)
 	SetHeight(int32) error
+	Get(key []byte) (*wire.TxOut, error)
+	Put(key []byte, tx *wire.TxOut) error
+	PutBatch([]KeyTx) error
 	Close() error
 }
 
@@ -70,11 +76,25 @@ func (o *db) Get(key []byte) (*wire.TxOut, error) {
 }
 
 func (o *db) Put(key []byte, tx *wire.TxOut) error {
-	serialized := make([]byte, len(tx.PkScript)+binary.MaxVarintLen64)
-	binary.LittleEndian.PutUint64(serialized[0:binary.MaxVarintLen64], uint64(tx.Value))
-	copy(serialized[binary.MaxVarintLen64:], tx.PkScript[:])
+	value := make([]byte, len(tx.PkScript)+binary.MaxVarintLen64)
+	binary.LittleEndian.PutUint64(value[:binary.MaxVarintLen64], uint64(tx.Value))
+	copy(value[binary.MaxVarintLen64:], tx.PkScript[:])
 
-	return o.ldb.Put(key, serialized[:], nil)
+	return o.ldb.Put(key, value[:], nil)
+}
+
+func (o *db) PutBatch(entries []KeyTx) error {
+	batch := &leveldb.Batch{}
+
+	for _, e := range entries {
+		value := make([]byte, len(e.Tx.PkScript)+binary.MaxVarintLen64)
+		binary.LittleEndian.PutUint64(value[:binary.MaxVarintLen64], uint64(e.Tx.Value))
+		copy(value[binary.MaxVarintLen64:], e.Tx.PkScript[:])
+
+		batch.Put(e.Key, value)
+	}
+
+	return o.ldb.Write(batch, nil)
 }
 
 func (o *db) Close() error {
@@ -87,7 +107,6 @@ func NewDB(path string) (*db, error) {
 		Compression: opt.NoCompression,
 	}
 	odb, err := leveldb.OpenFile(path, &opts)
-
 	if err != nil {
 		return nil, err
 	}

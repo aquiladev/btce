@@ -1,11 +1,11 @@
 package txout
 
 import (
-	"bytes"
 	"fmt"
 	"testing"
 
 	"github.com/btcsuite/btcd/wire"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPutGet(t *testing.T) {
@@ -14,31 +14,25 @@ func TestPutGet(t *testing.T) {
 	value := int64(1119393900022)
 	pkScript := []byte{0x00, 0x01, 0x00}
 	err := db.Put([]byte("qwerty"), wire.NewTxOut(value, pkScript))
-	if err != nil {
-		t.Error(err)
-	}
+	assert.Equal(t, nil, err)
 
 	tx, err := db.Get([]byte("qwerty"))
-	if err != nil {
-		t.Error(err)
-	}
-
-	if value != tx.Value {
-		t.Error("Wrong value")
-	}
-
-	if bytes.Compare(pkScript, tx.PkScript) != 0 {
-		t.Error("Wrong pkScript")
-	}
+	assert.Equal(t, nil, err)
+	assert.Equal(t, value, tx.Value)
+	assert.Equal(t, pkScript, tx.PkScript)
 }
 
 func TestGet(t *testing.T) {
 	db, _ := NewDB("C:\\Users\\BOMK354928\\AppData\\Local\\Btce\\data\\mainnet\\outputs")
 
-	tx, err := db.Get([]byte("db3f14e43fecc80eb3e0827cecce85b3499654694d12272bf91b1b2b8c33b5cb:0"))
-	if err != nil {
-		t.Error(err)
-	}
+	tx, err := db.Get([]byte("2e8fa683ff6777b929d38d119dc7c1e15b6a6e78629487775c659fa53765498f:0"))
+	assert.Equal(t, nil, err)
 
-	fmt.Println(tx)
+	fmt.Println(tx, err)
+
+
+	tx, err = db.Get([]byte("99442173fd7cae05c4469966fc9870c99b94d6c9784be2a80ddbb5bfd247bc0c:0"))
+	assert.Equal(t, nil, err)
+
+	fmt.Println(tx, err)
 }

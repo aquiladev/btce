@@ -19,6 +19,7 @@ const (
 	defaultLogDirname        = "logs"
 	defaultLogFilename       = "btce.log"
 	defaultDbType            = "ffldb"
+	defaultBatchSize         = 100
 )
 
 var (
@@ -38,6 +39,7 @@ type config struct {
 	LogDir        string `long:"logdir" description:"Directory to log output."`
 	DbType        string `long:"dbtype" description:"Database backend to use for the Block Chain"`
 	DebugLevel    string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	BatchSize     int
 }
 
 // cleanAndExpandPath expands environment variables and leading ~ in the
@@ -79,16 +81,6 @@ func validDbType(dbType string) bool {
 	return false
 }
 
-// filesExists reports whether the named file or directory exists.
-func fileExists(name string) bool {
-	if _, err := os.Stat(name); err != nil {
-		if os.IsNotExist(err) {
-			return false
-		}
-	}
-	return true
-}
-
 // loadConfig initializes and parses the config using a config file and command
 // line options.
 //
@@ -107,6 +99,7 @@ func loadConfig() (*config, error) {
 		DataDir:       defaultDataDir,
 		LogDir:        defaultLogDir,
 		DbType:        defaultDbType,
+		BatchSize:     defaultBatchSize,
 	}
 
 	// Pre-parse the command line options to see if an alternative config

@@ -2,6 +2,7 @@ package txout
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -11,8 +12,8 @@ import (
 )
 
 type Explorer struct {
-	started     int32
-	shutdown    int32
+	started  int32
+	shutdown int32
 
 	wg    sync.WaitGroup
 	quit  chan struct{}
@@ -23,6 +24,7 @@ type Explorer struct {
 	handledLogTx  int64
 	lastLogTime   time.Time
 	height        int32
+	batchSize     int
 }
 
 func (e *Explorer) start() {
@@ -36,6 +38,10 @@ out:
 
 		err := e.explore(e.height)
 		if err != nil {
+			if strings.Contains(err.Error(), "no block at height") {
+				time.Sleep(1 * time.Minute)
+				continue
+			}
 			log.Error(err)
 			break out
 		}
@@ -54,9 +60,8 @@ out:
 }
 
 func (e *Explorer) startBatch() {
-	done := make(chan bool)
+	done := make(chan error)
 	defer close(done)
-	batch := 100
 
 out:
 	for {
@@ -66,24 +71,26 @@ out:
 		default:
 		}
 
-		for i := 0; i < batch; i++ {
-			go func(height int32, ch chan bool) {
-				err := e.explore(height)
-				if err != nil {
-					log.Error(err)
-					ch <- false
-					return
+		for i := 0; i < e.batchSize; i++ {
+			go func(height int32, ch chan error) {
+				ch <- e.explore(height)
+			}(e.height+int32(i), done)
+		}
+		for i := 0; i < e.batchSize; i++ {
+			err := <-done
+			if err != nil {
+				if strings.Contains(err.Error(), "no block at height") {
+					time.Sleep(1 * time.Minute)
+					continue
 				}
-				ch <- true
-			}(e.height, done)
+				log.Error(err)
+				break out
+			}
+			e.logProgress()
 
-			e.height++
 			e.handledLogBlk++
 		}
-		for i := 0; i < batch; i++ {
-			<-done
-			e.logProgress()
-		}
+		e.height += int32(e.batchSize)
 	}
 
 	err := e.db.SetHeight(e.height)
@@ -104,20 +111,21 @@ func (e *Explorer) explore(height int32) error {
 }
 
 func (e *Explorer) store(block *btcutil.Block) error {
+	var entries []KeyTx
 	for _, tx := range block.Transactions() {
 		msgTx := tx.MsgTx()
 
 		for i, txOut := range msgTx.TxOut {
-			// Store transaction's output
 			key := fmt.Sprintf("%s:%d", tx.Hash(), i)
-			err := e.db.Put([]byte(key), txOut)
-			if err != nil {
-				return err
-			}
+			entries = append(entries, KeyTx{
+				Key: []byte(key),
+				Tx:  txOut,
+			})
 		}
 		e.handledLogTx++
 	}
-	return nil
+
+	return e.db.PutBatch(entries)
 }
 
 func (e *Explorer) logProgress() {
@@ -153,7 +161,7 @@ func (e *Explorer) Start() {
 
 	log.Trace("Starting TxOut explorer")
 	e.wg.Add(1)
-	go e.startBatch()
+	go e.start()
 }
 
 func (e *Explorer) Stop() {
@@ -170,7 +178,7 @@ func (e *Explorer) WaitForShutdown() {
 	e.wg.Wait()
 }
 
-func NewExplorer(db DB, chain *blockchain.BlockChain) *Explorer {
+func NewExplorer(db DB, chain *blockchain.BlockChain, batchSize int) *Explorer {
 	// Get height
 	height, err := db.GetHeight()
 	if err != nil {
@@ -185,5 +193,6 @@ func NewExplorer(db DB, chain *blockchain.BlockChain) *Explorer {
 		chain:       chain,
 		lastLogTime: time.Now(),
 		height:      height,
+		batchSize:   batchSize,
 	}
 }

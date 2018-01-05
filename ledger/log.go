@@ -1,4 +1,4 @@
-package balance
+package ledger
 
 import "github.com/btcsuite/btclog"
 

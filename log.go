@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/aquiladev/btce/balance"
+	"github.com/aquiladev/btce/ledger"
 	"github.com/aquiladev/btce/txout"
 	"github.com/btcsuite/btclog"
 	"github.com/jrick/logrotate/rotator"
@@ -42,13 +42,13 @@ var (
 	btceLog  = backendLog.Logger("BTCE")
 	explLog  = backendLog.Logger("EXPL")
 	txoutLog = backendLog.Logger("TXOU")
-	blncLog  = backendLog.Logger("BLNC")
+	ldgrLog  = backendLog.Logger("LDGR")
 )
 
 // Initialize package-global logger variables.
 func init() {
 	txout.UseLogger(txoutLog)
-	balance.UseLogger(blncLog)
+	ledger.UseLogger(ldgrLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
@@ -56,7 +56,7 @@ var subsystemLoggers = map[string]btclog.Logger{
 	"BTCE": btceLog,
 	"EXPL": explLog,
 	"TXOU": txoutLog,
-	"BLNC": blncLog,
+	"LDGR": ldgrLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and
