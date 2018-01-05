@@ -27,7 +27,7 @@ var (
 func btceMain(explorerChan chan<- *explorer) error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
-	tcfg, err := loadConfig()
+	tcfg, _, err := loadConfig()
 	if err != nil {
 		return err
 	}

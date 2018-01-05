@@ -77,3 +77,29 @@ func initLogRotator(logFile string) {
 
 	logRotator = r
 }
+
+// setLogLevel sets the logging level for provided subsystem.  Invalid
+// subsystems are ignored.  Uninitialized subsystems are dynamically created as
+// needed.
+func setLogLevel(subsystemID string, logLevel string) {
+	// Ignore invalid subsystems.
+	logger, ok := subsystemLoggers[subsystemID]
+	if !ok {
+		return
+	}
+
+	// Defaults to info if the log level is invalid.
+	level, _ := btclog.LevelFromString(logLevel)
+	logger.SetLevel(level)
+}
+
+// setLogLevels sets the log level for all subsystem loggers to the passed
+// level.  It also dynamically creates the subsystem loggers as needed, so it
+// can be used to initialize the logging system.
+func setLogLevels(logLevel string) {
+	// Configure all sub-systems with the new logging level.  Dynamically
+	// create loggers as needed.
+	for subsystemID := range subsystemLoggers {
+		setLogLevel(subsystemID, logLevel)
+	}
+}
