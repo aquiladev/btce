@@ -13,13 +13,15 @@ import (
 )
 
 const (
-	defaultConfigFilename    = "btce.conf"
-	defaultSourceDataDirname = "D:\\btcd\\data" //TODO btcd-data
-	defaultDataDirname       = "data"
-	defaultLogDirname        = "logs"
-	defaultLogFilename       = "btce.log"
-	defaultDbType            = "ffldb"
-	defaultBatchSize         = 100
+	defaultConfigFilename       = "btce.conf"
+	defaultSourceDataDirname    = "D:\\btcd\\data" //TODO btcd-data
+	defaultDataDirname          = "data"
+	defaultLogDirname           = "logs"
+	defaultLogFilename          = "btce.log"
+	defaultDbType               = "ffldb"
+	defaultBatchSize            = 100
+	defaultBalanceCalcPeriod    = 1000
+	dafaultBalanceCalcThreshold = 300000
 )
 
 var (
@@ -32,14 +34,16 @@ var (
 )
 
 type config struct {
-	ShowVersion   bool   `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile    string `short:"C" long:"configfile" description:"Path to configuration file"`
-	SourceDataDir string `short:"s" long:"sourcedatadir" description:"Path to source data"`
-	DataDir       string `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir        string `long:"logdir" description:"Directory to log output."`
-	DbType        string `long:"dbtype" description:"Database backend to use for the Block Chain"`
-	DebugLevel    string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	BatchSize     int
+	ShowVersion          bool   `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile           string `short:"C" long:"configfile" description:"Path to configuration file"`
+	SourceDataDir        string `short:"s" long:"sourcedatadir" description:"Path to source data"`
+	DataDir              string `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir               string `long:"logdir" description:"Directory to log output."`
+	DbType               string `long:"dbtype" description:"Database backend to use for the Block Chain"`
+	DebugLevel           string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	BatchSize            int
+	BalanceCalcPeriod    int32
+	BalanceCalcThreshold int32
 }
 
 // cleanAndExpandPath expands environment variables and leading ~ in the
@@ -95,11 +99,13 @@ func validDbType(dbType string) bool {
 // command line options.  Command line options always take precedence.
 func loadConfig() (*config, error) {
 	cfg := config{
-		SourceDataDir: defaultSourceDataDir,
-		DataDir:       defaultDataDir,
-		LogDir:        defaultLogDir,
-		DbType:        defaultDbType,
-		BatchSize:     defaultBatchSize,
+		SourceDataDir:        defaultSourceDataDir,
+		DataDir:              defaultDataDir,
+		LogDir:               defaultLogDir,
+		DbType:               defaultDbType,
+		BatchSize:            defaultBatchSize,
+		BalanceCalcPeriod:    defaultBalanceCalcPeriod,
+		BalanceCalcThreshold: dafaultBalanceCalcThreshold,
 	}
 
 	// Pre-parse the command line options to see if an alternative config

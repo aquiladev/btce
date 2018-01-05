@@ -81,7 +81,11 @@ func newExplorer(
 	return &explorer{
 		explorers: []Explorer{
 			txout.NewExplorer(txoutDB, chain, cfg.BatchSize),
-			ledger.NewExplorer(chain, chainParams, txoutDB, ledgerDB, cfg.BatchSize),
+			ledger.NewExplorer(chain, chainParams, txoutDB, ledgerDB, &ledger.Config{
+				BatchSize:            cfg.BatchSize,
+				BalanceCalcPeriod:    cfg.BalanceCalcPeriod,
+				BalanceCalcThreshold: cfg.BalanceCalcThreshold,
+			}),
 		},
 	}, nil
 }

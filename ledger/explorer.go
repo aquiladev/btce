@@ -28,15 +28,17 @@ type Explorer struct {
 	chain       *blockchain.BlockChain
 	chainParams *chaincfg.Params
 
-	txoutDB         txout.DB
-	db              DB
-	balanceCalc     *BalanceCalc
-	handledLogBlk   int64
-	handledLogTx    int64
-	lastLogTime     time.Time
-	lastBalanceCalc int32
-	height          int32
-	batchSize       int
+	txoutDB              txout.DB
+	db                   DB
+	balanceCalc          *BalanceCalc
+	handledLogBlk        int64
+	handledLogTx         int64
+	lastLogTime          time.Time
+	lastBalanceCalc      int32
+	height               int32
+	batchSize            int
+	balanceCalcPeriod    int32
+	balanceCalcThreshold int32
 }
 
 func (e *Explorer) start() {
@@ -237,7 +239,8 @@ func convertToPubKey(addr btcutil.Address) (string, error) {
 
 func (e *Explorer) calcBalances() error {
 	diff := e.height - e.lastBalanceCalc
-	if diff < 1000 {
+	if diff < e.balanceCalcPeriod ||
+		e.height < e.balanceCalcThreshold {
 		return nil
 	}
 
@@ -305,7 +308,7 @@ func NewExplorer(
 	chainParams *chaincfg.Params,
 	txoutDB txout.DB,
 	db DB,
-	batchSize int) *Explorer {
+	config *Config) *Explorer {
 
 	// Get height
 	height, err := db.GetHeight()
@@ -316,14 +319,16 @@ func NewExplorer(
 	log.Infof("Height: %d", height)
 
 	return &Explorer{
-		quit:        make(chan struct{}),
-		chainParams: chainParams,
-		txoutDB:     txoutDB,
-		db:          db,
-		balanceCalc: newBalanceCalc(db),
-		chain:       chain,
-		lastLogTime: time.Now(),
-		height:      height,
-		batchSize:   batchSize,
+		quit:                 make(chan struct{}),
+		chainParams:          chainParams,
+		txoutDB:              txoutDB,
+		db:                   db,
+		balanceCalc:          newBalanceCalc(db),
+		chain:                chain,
+		lastLogTime:          time.Now(),
+		height:               height,
+		batchSize:            config.BatchSize,
+		balanceCalcPeriod:    config.BalanceCalcPeriod,
+		balanceCalcThreshold: config.BalanceCalcThreshold,
 	}
 }

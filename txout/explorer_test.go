@@ -2,6 +2,7 @@ package txout
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/btcsuite/btcd/blockchain"
@@ -63,7 +64,8 @@ func loadSourceDB() (database.DB, error) {
 }
 
 func loadDB() (DB, error) {
-	db, err := NewDB("C:\\Users\\BOMK354928\\AppData\\Local\\Btce\\data\\mainnet\\outputs")
+	appDir := btcutil.AppDataDir("btce", false)
+	db, err := NewDB(filepath.Join(appDir, "data\\mainnet\\outputs"))
 	if err != nil {
 		return nil, err
 	}

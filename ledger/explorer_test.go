@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"testing"
+	"path/filepath"
 
 	"github.com/aquiladev/btce/txout"
 	"github.com/btcsuite/btcd/blockchain"
@@ -9,8 +10,9 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/database"
 	_ "github.com/btcsuite/btcd/database/ffldb"
-	"github.com/stretchr/testify/assert"
 	"github.com/btcsuite/btclog"
+	"github.com/btcsuite/btcutil"
+	"github.com/stretchr/testify/assert"
 )
 
 type logWriter struct{}
@@ -52,7 +54,7 @@ func BenchmarkExplore(b *testing.B) {
 	assert.Equal(b, nil, err)
 	defer db.Close()
 
-	explorer := NewExplorer(chain, &chaincfg.MainNetParams, txoutDB, db, 0)
+	explorer := NewExplorer(chain, &chaincfg.MainNetParams, txoutDB, db, nil)
 
 	// Act
 	b.StartTimer()
@@ -72,7 +74,8 @@ func loadSourceDB() (database.DB, error) {
 }
 
 func loadTxOutDB() (txout.DB, error) {
-	db, err := txout.NewDB("C:\\Users\\BOMK354928\\AppData\\Local\\Btce\\data\\mainnet\\outputs")
+	appDir := btcutil.AppDataDir("btce", false)
+	db, err := txout.NewDB(filepath.Join(appDir, "data\\mainnet\\outputs"))
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +84,8 @@ func loadTxOutDB() (txout.DB, error) {
 }
 
 func loadDB() (DB, error) {
-	db, err := NewDB("C:\\Users\\BOMK354928\\AppData\\Local\\Btce\\data\\mainnet\\ledger")
+	appDir := btcutil.AppDataDir("btce", false)
+	db, err := NewDB(filepath.Join(appDir, "data\\mainnet\\ledger"))
 	if err != nil {
 		return nil, err
 	}
