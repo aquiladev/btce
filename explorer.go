@@ -3,14 +3,15 @@ package main
 import (
 	"sync/atomic"
 
+	"github.com/aquiladev/btce/ledger"
 	"github.com/aquiladev/btce/txout"
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/database"
-	"github.com/aquiladev/btce/ledger"
 )
 
 type Explorer interface {
+	GetType() string
 	Start()
 	Stop()
 	WaitForShutdown()
@@ -20,7 +21,18 @@ type explorer struct {
 	started  int32
 	shutdown int32
 
-	explorers []Explorer
+	explorers        []Explorer
+	explorersToStart []string
+}
+
+func contains(slice []string, item string) bool {
+	set := make(map[string]struct{}, len(slice))
+	for _, s := range slice {
+		set[s] = struct{}{}
+	}
+
+	_, ok := set[item]
+	return ok
 }
 
 // Start begins accepting connections from peers.
@@ -33,6 +45,10 @@ func (e *explorer) Start() {
 	explLog.Trace("Starting explorer")
 
 	for _, ex := range e.explorers {
+		if len(e.explorersToStart) != 0 &&
+			!contains(e.explorersToStart, ex.GetType()) {
+			continue
+		}
 		ex.Start()
 	}
 }
@@ -66,7 +82,9 @@ func newExplorer(
 	chainParams *chaincfg.Params,
 	interrupt <-chan struct{},
 	txoutDB txout.DB,
-	ledgerDB ledger.DB) (*explorer, error) {
+	ledgerDB ledger.DB,
+	explorersToStart []string) (*explorer, error) {
+
 	// Create a new block chain instance with the appropriate configuration.
 	chain, err := blockchain.New(&blockchain.Config{
 		DB:          db,
@@ -79,6 +97,7 @@ func newExplorer(
 	}
 
 	return &explorer{
+		explorersToStart: explorersToStart,
 		explorers: []Explorer{
 			txout.NewExplorer(txoutDB, chain, cfg.BatchSize),
 			ledger.NewExplorer(chain, chainParams, txoutDB, ledgerDB, &ledger.Config{

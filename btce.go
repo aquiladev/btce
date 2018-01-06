@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
 
 	"github.com/aquiladev/btce/ledger"
 	"github.com/aquiladev/btce/txout"
@@ -89,8 +90,14 @@ func btceMain(explorerChan chan<- *explorer) error {
 		txoutDB.Close()
 	}()
 
+	// Explorers to start
+	var explorersToStart []string
+	if len(cfg.Explorers) > 0 {
+		explorersToStart = strings.Split(cfg.Explorers, ",")
+	}
+
 	// Create explorer and start it.
-	explorer, err := newExplorer(sourceDB, activeNetParams.Params, interrupt, txoutDB, ledgerDB)
+	explorer, err := newExplorer(sourceDB, activeNetParams.Params, interrupt, txoutDB, ledgerDB, explorersToStart)
 	if err != nil {
 		btceLog.Errorf("Unable to start explorer: %v", err)
 		return err

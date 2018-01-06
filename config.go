@@ -49,6 +49,7 @@ type config struct {
 	BatchSize            int    `long:"batchsize" description:"Batch Size."`
 	BalanceCalcPeriod    int32  `long:"balancecalcperiod" description:"Balance calculation period in blocks."`
 	BalanceCalcThreshold int32  `long:"balancecalcthreshold" description:"Balance calculation threshold in blocks."`
+	Explorers            string `long:"explorers" description:"Define list of explorers for start. Comma separated values without spaces."`
 }
 
 // cleanAndExpandPath expands environment variables and leading ~ in the
@@ -188,6 +189,7 @@ func loadConfig() (*config, []string, error) {
 		BatchSize:            defaultBatchSize,
 		BalanceCalcPeriod:    defaultBalanceCalcPeriod,
 		BalanceCalcThreshold: defaultBalanceCalcThreshold,
+		Explorers:            "",
 	}
 
 	// Pre-parse the command line options to see if an alternative config
@@ -236,8 +238,6 @@ func loadConfig() (*config, []string, error) {
 			configFileError = err
 		}
 	}
-
-	fmt.Println(cfg.SourceDataDir)
 
 	// Parse command line options again to ensure they take precedence.
 	remainingArgs, err := parser.Parse()

@@ -278,13 +278,17 @@ func (e *Explorer) logProgress() {
 	e.lastLogTime = now
 }
 
+func (e *Explorer) GetType() string {
+	return "ledger"
+}
+
 func (e *Explorer) Start() {
 	// Already started?
 	if atomic.AddInt32(&e.started, 1) != 1 {
 		return
 	}
 
-	log.Trace("Starting Ledger explorer")
+	log.Info("Starting Ledger explorer")
 	e.wg.Add(1)
 	go e.startBatch()
 }

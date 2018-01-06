@@ -153,13 +153,17 @@ func (e *Explorer) logProgress() {
 	e.lastLogTime = now
 }
 
+func (e *Explorer) GetType() string {
+	return "txout"
+}
+
 func (e *Explorer) Start() {
 	// Already started?
 	if atomic.AddInt32(&e.started, 1) != 1 {
 		return
 	}
 
-	log.Trace("Starting TxOut explorer")
+	log.Info("Starting TxOut explorer")
 	e.wg.Add(1)
 	go e.start()
 }
