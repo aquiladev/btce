@@ -64,11 +64,12 @@ out:
 			log.Error(err)
 			break out
 		}
-		e.logProgress()
+		e.logProgress(false)
 
 		e.height++
 		e.handledLogBlk++
 	}
+	e.logProgress(true)
 
 	err := e.db.SetHeight(e.height)
 	if err != nil {
@@ -110,12 +111,13 @@ out:
 				log.Error(err)
 				break out
 			}
-			e.logProgress()
+			e.logProgress(false)
 
 			e.handledLogBlk++
 		}
 		e.height += int32(e.batchSize)
 	}
+	e.logProgress(true)
 
 	err := e.db.SetHeight(e.height)
 	if err != nil {
@@ -253,10 +255,10 @@ func (e *Explorer) calcBalances() error {
 	return nil
 }
 
-func (e *Explorer) logProgress() {
+func (e *Explorer) logProgress(force bool) {
 	now := time.Now()
 	duration := now.Sub(e.lastLogTime)
-	if duration < time.Second*time.Duration(20) {
+	if duration < time.Second*time.Duration(20) && !force {
 		return
 	}
 
