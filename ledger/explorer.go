@@ -333,6 +333,7 @@ func NewExplorer(
 		chain:                chain,
 		lastLogTime:          time.Now(),
 		height:               height,
+		lastBalanceCalc:      height,
 		batchSize:            config.BatchSize,
 		balanceCalcPeriod:    config.BalanceCalcPeriod,
 		balanceCalcThreshold: config.BalanceCalcThreshold,
