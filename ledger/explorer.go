@@ -53,6 +53,7 @@ out:
 		err := e.explore(e.height)
 		if err != nil {
 			if strings.Contains(err.Error(), "no block at height") {
+				e.logProgress(true)
 				time.Sleep(1 * time.Minute)
 				continue
 			}
@@ -69,7 +70,6 @@ out:
 		e.height++
 		e.handledLogBlk++
 	}
-	e.logProgress(true)
 
 	err := e.db.SetHeight(e.height)
 	if err != nil {
@@ -100,6 +100,7 @@ out:
 			err := <-done
 			if err != nil {
 				if strings.Contains(err.Error(), "no block at height") {
+					e.logProgress(true)
 					time.Sleep(1 * time.Minute)
 					continue
 				}
@@ -117,7 +118,6 @@ out:
 		}
 		e.height += int32(e.batchSize)
 	}
-	e.logProgress(true)
 
 	err := e.db.SetHeight(e.height)
 	if err != nil {
