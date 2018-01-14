@@ -46,6 +46,7 @@ out:
 	for {
 		select {
 		case <-e.quit:
+			e.logProgress(true)
 			break out
 		default:
 		}
@@ -53,7 +54,6 @@ out:
 		err := e.explore(e.height)
 		if err != nil {
 			if strings.Contains(err.Error(), "no block at height") {
-				e.logProgress(true)
 				time.Sleep(1 * time.Minute)
 				continue
 			}
@@ -87,6 +87,7 @@ out:
 	for {
 		select {
 		case <-e.quit:
+			e.logProgress(true)
 			break out
 		default:
 		}
@@ -100,7 +101,6 @@ out:
 			err := <-done
 			if err != nil {
 				if strings.Contains(err.Error(), "no block at height") {
-					e.logProgress(true)
 					time.Sleep(1 * time.Minute)
 					continue
 				}
