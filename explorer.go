@@ -5,6 +5,7 @@ import (
 
 	"github.com/aquiladev/btce/ledger"
 	"github.com/aquiladev/btce/txout"
+	"github.com/aquiladev/btce/utxo"
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/database"
@@ -83,6 +84,7 @@ func newExplorer(
 	interrupt <-chan struct{},
 	txoutDB txout.DB,
 	ledgerDB ledger.DB,
+	utxoDB utxo.DB,
 	explorersToStart []string) (*explorer, error) {
 
 	// Create a new block chain instance with the appropriate configuration.
@@ -99,9 +101,14 @@ func newExplorer(
 	return &explorer{
 		explorersToStart: explorersToStart,
 		explorers: []Explorer{
-			txout.NewExplorer(txoutDB, chain, cfg.BatchSize),
-			ledger.NewExplorer(chain, chainParams, txoutDB, ledgerDB, &ledger.Config{
-				BatchSize:            cfg.BatchSize,
+			//txout.NewExplorer(txoutDB, chain, cfg.BatchSize),
+			//ledger.NewExplorer(chain, chainParams, txoutDB, ledgerDB, &ledger.Config{
+			//	BatchSize:            cfg.BatchSize,
+			//	BalanceCalcPeriod:    cfg.BalanceCalcPeriod,
+			//	BalanceCalcThreshold: cfg.BalanceCalcThreshold,
+			//}),
+			utxo.NewExplorer(chain, chainParams, utxoDB, &utxo.Config{
+				EnableBalanceCalc:    cfg.EnableBalanceCalc,
 				BalanceCalcPeriod:    cfg.BalanceCalcPeriod,
 				BalanceCalcThreshold: cfg.BalanceCalcThreshold,
 			}),

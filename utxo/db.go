@@ -1,4 +1,4 @@
-package ledger
+package utxo
 
 import (
 	"bytes"
@@ -12,6 +12,11 @@ import (
 	"github.com/btcsuite/goleveldb/leveldb/util"
 )
 
+type Balance struct {
+	Key   []byte
+	Value int64
+}
+
 var (
 	heightKey = "height"
 
@@ -19,20 +24,14 @@ var (
 	balanceBucketName    = []byte("balancex")
 )
 
-type Balance struct {
-	Key   []byte
-	Value int64
-}
-
 type DB interface {
 	GetHeight() (int32, error)
 	SetHeight(int32) error
 	Get([]byte) (*Entry, error)
-	GetBalance([]byte) (*Balance, error)
-	GetIterator(prefix []byte) iterator.Iterator
-	Put(*Entry) error
 	PutBatch([]Entry) error
+	GetBalance([]byte) (*Balance, error)
 	PutBalance(*Balance) error
+	GetIterator(prefix []byte) iterator.Iterator
 	Close() error
 }
 
@@ -56,7 +55,6 @@ func (l *db) putBatch(entries []Entry) error {
 
 	return l.ldb.Write(batch, nil)
 }
-
 func (l *db) GetHeight() (int32, error) {
 	height := int64(0)
 	data, err := l.ldb.Get([]byte(heightKey), nil)
@@ -91,7 +89,23 @@ func (l *db) Get(key []byte) (*Entry, error) {
 		return nil, err
 	}
 
-	return ToEntry(key, serialized)
+	return toEntry(key, serialized)
+}
+
+func (l *db) PutBatch(entries []Entry) error {
+	batch := &leveldb.Batch{}
+
+	for _, e := range entries {
+		k, v := toPair(&e)
+		batch.Put(k, v)
+	}
+
+	err := l.putBatch(entries)
+	if err != nil {
+		return err
+	}
+
+	return l.ldb.Write(batch, nil)
 }
 
 func (l *db) GetBalance(key []byte) (*Balance, error) {
@@ -121,21 +135,6 @@ func (l *db) GetBalance(key []byte) (*Balance, error) {
 	}, nil
 }
 
-func (l *db) GetIterator(prefix []byte) iterator.Iterator {
-	return l.ldb.NewIterator(util.BytesPrefix(prefix), nil)
-}
-
-func (l *db) Put(entry *Entry) error {
-	key, value := toPair(entry)
-
-	err := l.putBatch([]Entry{*entry})
-	if err != nil {
-		return err
-	}
-
-	return l.ldb.Put(key, value, nil)
-}
-
 func (l *db) PutBalance(balance *Balance) error {
 	bucketNameLen := len(balanceBucketName)
 
@@ -149,20 +148,8 @@ func (l *db) PutBalance(balance *Balance) error {
 	return l.ldb.Put(key, value, nil)
 }
 
-func (l *db) PutBatch(entries []Entry) error {
-	batch := &leveldb.Batch{}
-
-	for _, e := range entries {
-		k, v := toPair(&e)
-		batch.Put(k, v)
-	}
-
-	err := l.putBatch(entries)
-	if err != nil {
-		return err
-	}
-
-	return l.ldb.Write(batch, nil)
+func (l *db) GetIterator(prefix []byte) iterator.Iterator {
+	return l.ldb.NewIterator(util.BytesPrefix(prefix), nil)
 }
 
 func (l *db) Close() error {

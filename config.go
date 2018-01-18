@@ -24,6 +24,7 @@ const (
 	defaultLogFilename          = "btce.log"
 	defaultDbType               = "ffldb"
 	defaultBatchSize            = 10
+	defaultEnableBalanceCalc    = false
 	defaultBalanceCalcPeriod    = 1000
 	defaultBalanceCalcThreshold = 300000
 	sampleConfigFilename        = "sample-btce.conf"
@@ -47,6 +48,7 @@ type config struct {
 	DbType               string `long:"dbtype" description:"Database backend to use for the Block Chain"`
 	DebugLevel           string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 	BatchSize            int    `long:"batchsize" description:"Batch Size."`
+	EnableBalanceCalc    bool   `long:"enablebalancecalc" description:"Enable balance calculation."`
 	BalanceCalcPeriod    int32  `long:"balancecalcperiod" description:"Balance calculation period in blocks."`
 	BalanceCalcThreshold int32  `long:"balancecalcthreshold" description:"Balance calculation threshold in blocks."`
 	Explorers            string `long:"explorers" description:"Define list of explorers for start. Comma separated values without spaces."`
@@ -187,6 +189,7 @@ func loadConfig() (*config, []string, error) {
 		LogDir:               defaultLogDir,
 		DbType:               defaultDbType,
 		BatchSize:            defaultBatchSize,
+		EnableBalanceCalc:    defaultEnableBalanceCalc,
 		BalanceCalcPeriod:    defaultBalanceCalcPeriod,
 		BalanceCalcThreshold: defaultBalanceCalcThreshold,
 		Explorers:            "",
