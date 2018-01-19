@@ -98,7 +98,7 @@ func btceMain(explorerChan chan<- *explorer) error {
 		return err
 	}
 	defer func() {
-		ledgerDB.Close()
+		utxoDB.Close()
 	}()
 
 	// Explorers to start

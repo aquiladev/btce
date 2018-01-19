@@ -55,6 +55,7 @@ func (l *db) putBatch(entries []Entry) error {
 
 	return l.ldb.Write(batch, nil)
 }
+
 func (l *db) GetHeight() (int32, error) {
 	height := int64(0)
 	data, err := l.ldb.Get([]byte(heightKey), nil)
