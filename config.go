@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"sort"
+	"strings"
 
 	"github.com/btcsuite/btcd/database"
 	_ "github.com/btcsuite/btcd/database/ffldb"
